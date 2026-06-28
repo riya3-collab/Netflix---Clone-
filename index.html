@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Netflix-Clone-90LPA | CDN + LRU Cache</title>
+  <style>
+    body{background:#141414;color:#fff;font-family:Arial;margin:0}
+    .header{padding:20px;font-size:32px;color:#e50914;font-weight:bold}
+    .row{margin:20px}.row h2{margin-left:20px}
+    .movies{display:flex;overflow-x:auto;padding:20px;gap:10px}
+    .movie{min-width:200px;height:300px;background:#333;cursor:pointer;transition:0.3s}
+    .movie:hover{transform:scale(1.1)}.movie img{width:100%;height:100%;object-fit:cover}
+    .stats{position:fixed;top:10px;right:10px;background:#e50914;padding:10px;border-radius:5px}
+  </style>
+</head>
+<body>
+  <div class="header">NETFLIX-90LPA</div>
+  <div class="stats" id="cacheStats">Cache Hit: 0% | LRU Size: 0/3</div>
+  <div class="row"><h2>Trending Now - CDN Cached</h2><div class="movies" id="trending"></div></div>
+  <div class="row"><h2>90 LPA Picks</h2><div class="movies" id="picks"></div></div>
+
+<script>
+// LRU CACHE - MICROSOFT SYSTEM DESIGN CORE
+class LRUCache {
+  constructor(capacity) {
+    this.capacity = capacity;
+    this.cache = new Map();
+    this.hits = 0; this.misses = 0;
+  }
+  get(key) {
+    if (this.cache.has(key)) {
+      const val = this.cache.get(key);
+      this.cache.delete(key);
+      this.cache.set(key, val); // Move to end = most recent
+      this.hits++;
+      return val;
+    }
+    this.misses++; return null;
+  }
+  put(key, value) {
+    if (this.cache.has(key)) this.cache.delete(key);
+    else if (this.cache.size >= this.capacity) {
+      this.cache.delete(this.cache.keys().next().value); // Remove LRU
+    }
+    this.cache.set(key, value);
+  }
+  getHitRate() {
+    const total = this.hits + this.misses;
+    return total === 0 ? 0 : ((this.hits / total) * 100).toFixed(1);
+  }
+}
+
+const CDN_CACHE = new LRUCache(3); // Edge cache = 3 movies max
+
+// MOCK MOVIE DATA - CDN ORIGIN SERVER
+const MOVIES = [
+  {id:1, title:"System Design", img:"https://picsum.photos/200/300?1"},
+  {id:2, title:"90 LPA Prep", img:"https://picsum.photos/200/300?2"},
+  {id:3, title:"Microservices", img:"https://picsum.photos/200/300?3"},
+  {id:4, title:"Redis Streams", img:"https://picsum.photos/200/300?4"},
+  {id:5, title:"Kafka Pub/Sub", img:"https://picsum.photos/200/300?5"},
+  {id:6, title:"Microsoft L60", img:"https://picsum.photos/200/300?6"}
+];
+
+function updateStats() {
+  document.getElementById('cacheStats').innerHTML = 
+    `Cache Hit: ${CDN_CACHE.getHitRate()}% | LRU Size: ${CDN_CACHE.cache.size}/3`;
+}
+
+// SIMULATE CDN FETCH WITH LRU
+async function loadMovie(movie) {
+  let data = CDN_CACHE.get(movie.id);
+  if (data) {
+    console.log(`CDN HIT: ${movie.title}`); // Served from edge
+  } else {
+    console.log(`CDN MISS: Fetching ${movie.title} from origin`);
+    await new Promise(r => setTimeout(r, 500)); // Network latency
+    data = movie;
+    CDN_CACHE.put(movie.id, movie); // Cache at edge
+  }
+  updateStats();
+  return data;
+}
+
+function renderMovies(containerId, movies) {
+  const container = document.getElementById(containerId);
+  movies.forEach(async movie => {
+    await loadMovie(movie);
+    const div = document.createElement('div');
+    div.className = 'movie';
+    div.innerHTML = `<img src="${movie.img}" alt="${movie.title}" title="${movie.title}">`;
+    div.onclick = () => {
+      alert(`${movie.title}\n\nSystem Design: Played from CDN Edge Cache\nLatency: <50ms\n90 LPA Concept: LRU Eviction`);
+      loadMovie(movie); // Hit cache again
+    };
+    container.appendChild(div);
+  });
+}
+
+renderMovies('trending', MOVIES.slice(0,4));
+renderMovies('picks', MOVIES.slice(2,6));
+updateStats();
+</script>
+</body>
+</html>
